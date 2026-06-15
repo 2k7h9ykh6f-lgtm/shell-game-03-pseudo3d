@@ -1,3 +1,4 @@
+mapvalid=1
 if ((mapselect==1)); then
 map=(
     1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
@@ -28,6 +29,8 @@ map=(
 mapw=24 maph=24
 mx=$((22*scale)) my=$((maph/2*scale))
 angle=pi
+# exitx is the row (mx/scale), exity the column (my/scale); must be a floor (0) cell
+exitx=2 exity=21
 elif ((mapselect==2)); then
 
 map=(
@@ -80,6 +83,7 @@ mapw=44 maph=44
 ((mx=375*scale/10))
 ((my=95*scale/10))
 angle=$((pi2-pi/2))
+exitx=14 exity=15
 elif ((mapselect==3)); then
 map=(
     9 9 9 9 9 9 9 9 9 9 9 9 9 9 9 9 9 9
@@ -104,7 +108,8 @@ map=(
 mapw=18 maph=18
 ((mx=scale,my=(maph-1)*scale))
 angle=$((pi2-pi/4))
-else
+exitx=16 exity=1
+elif ((mapselect==4)); then
 map=(
     2 2 2 3 3 4 4 5 6 7 7 7 7 7 9 9 9 9 9 9 9 9 9
     2 0 0 0 0 0 0 0 6 0 0 0 0 8 0 0 9 9 0 0 0 0 9
@@ -128,6 +133,9 @@ map=(
 mapw=23 maph=18
 ((mx=my=scale*3/2))
 angle=$((pi/2))
+exitx=16 exity=21
+else
+    mapvalid=0
 fi
 for ((i=0;i<maph;i+=2)) do
     for ((j=0;j<mapw;j++)) do

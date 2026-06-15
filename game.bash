@@ -26,9 +26,47 @@
 # this is the dumbest thing i've ever written
 [[ $- = *i* && $- = *m* ]] || exec "$BASH" --norc --noediting --noprofile -im +H +o history ./game.bash
 
+mapcount=4
+had_mapselect=${mapselect+1}
 mapselect=${mapselect-4}
+
+# startup map selection menu (only when interactive and no map was set explicitly)
+choose_map () {
+    local key i
+    printf 'pseudo3d - select a map:\n'
+    for ((i=1;i<=mapcount;i++)); do printf '  %d) map %d\n' "$i" "$i"; done
+    while :; do
+        printf 'choice [1-%d] (default %d): ' "$mapcount" "$mapselect"
+        read -rsn1 key
+        printf '\n'
+        [[ $key ]] || break
+        if [[ $key = [0-9] ]] && ((key>=1 && key<=mapcount)); then
+            mapselect=$key; break
+        fi
+        printf 'invalid choice: %q\n' "$key"
+    done
+}
+[[ -t 0 && -t 1 && -z $had_mapselect ]] && choose_map
 source ./maths.bash
 source ./maps.bash
+
+# validate the loaded map before entering the alt-screen so errors stay visible
+validate_map () {
+    local err=
+    if ((!mapvalid)); then
+        err="invalid map $mapselect (valid: 1-$mapcount)"
+    elif (( ${#map[@]} != mapw*maph )); then
+        err="map $mapselect grid is ${#map[@]} cells, expected mapw*maph = $((mapw*maph))"
+    elif (( exitx<0 || exitx>=maph || exity<0 || exity>=mapw )); then
+        err="map $mapselect exit ($exitx,$exity) is off-grid"
+    elif (( map[exitx*mapw+exity]!=0 )); then
+        err="map $mapselect exit ($exitx,$exity) is not on a floor tile"
+    fi
+    [[ $err ]] || return 0
+    printf 'error: %s\n' "$err" >&2
+    exit 1
+}
+validate_map
 source ./util.bash
 source ./dispatch.bash
 
@@ -98,7 +136,7 @@ gamesetup () {
             '\e[?1049l' 'alt screen off'
 
         stty echo sane
-        dumpstats
+        ((TRANSITION)) || dumpstats
     }
     trap exitfunc exit
 
@@ -368,6 +406,16 @@ scale5=scale*5,
 scale10=scale*10,
 scale100=scale*100
 ))
+load_next_map () {
+    # tear down cleanly (stops renderers, restores terminal, skips stats) then
+    # re-exec the game with the next map; re-exec guarantees fresh renderer forks
+    TRANSITION=1
+    exitfunc
+    export mapselect=$1
+    exec "$BASH" --norc --noediting --noprofile -im +H +o history ./game.bash
+    stty echo sane; printf '\n'; echo 'error: failed to reload game' >&2; exit 1
+}
+
 while nextframe; do
     for k in "${INPUT[@]}"; do
         case $k in
@@ -385,6 +433,8 @@ while nextframe; do
     sincos "$angle"
 
     ((movement,bombtimer))
+
+    ((mx/scale==exitx && my/scale==exity)) && load_next_map "$(((mapselect%mapcount)+1))"
 
     drawframe >&"$outfile"
 done
