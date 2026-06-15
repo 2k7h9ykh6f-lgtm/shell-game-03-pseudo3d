@@ -284,6 +284,7 @@ dist=(side?sdx-dx:sdy-dy)*fov/scale,h=dist<scale?rows*2:rows*2*scale/dist,fdist=
 
 # maybe this should be disabled if sync is off and we're in multithreaded mode
 [[ $MINIMAP ]]; aliasing "$?" minimap
+[[ $DEBUG ]]; aliasing "$?" debug
 
 for i in "${!map[@]}"; do
     mapc[i*3+0]=${wallsr[mapt[i]]}
@@ -295,6 +296,15 @@ cellfmt=$'\e[38;2;%d;%d;%d;48;2;%d;%d;%dm▀'
 printf -v mapfmt '%*s' "$mapw"
 mapfmt=${mapfmt// /$cellfmt}$'\r\e[B'
 printf -v mapcache "$mapfmt" "${mapc[@]}"
+
+# developer debug overlay (DEBUG): collision-coloured minimap, precomputed once
+# (collision geometry is static, like mapcache). mirrors mapc's interleaved mapt
+# order + 3-values-per-cell layout, so it feeds $mapfmt correctly.
+debug for ((i=0;i<${#map[@]};i++)) do        # C-style for + arithmetic ternary (mirrors the multithread loop at line 326); alias-safe whether debug expands to '' or '#'
+debug     ((dbgsolid=(mapt[i]|1)!=1, dbgc[i*3]=dbgsolid?wallsr[mapt[i]]:40, dbgc[i*3+1]=dbgsolid?wallsg[mapt[i]]:40, dbgc[i*3+2]=dbgsolid?wallsb[mapt[i]]:40))
+debug done
+debug printf -v dbgmapcache "$mapfmt" "${dbgc[@]}"
+debug arrows=(↓ ↘ → ↗ ↑ ↖ ← ↙)
 
 minimap='row=mx/scale,odd=row%2,row=row/2*2,col=my/scale,
 fgidx=row*mapw+col,bgidx=(row+1)*mapw+col,
@@ -322,6 +332,9 @@ drawframe () {
     singlethread drawrays
 
     minimap printf "\e[1;1H$minimapfmt" "$mapcache" "$(((maph-row)/2))" "$col" "$fgr" "$fgg" "$fgb" "$bgr" "$bgg" "$bgb"
+
+    debug ((dbgrow=mx/scale, dbgcol=my/scale, dbgs=((angle*8+pi2/2)/pi2)%8))
+    debug printf '\e[1;1H%s\e[%d;%dH\e[1;38;2;0;0;0;48;2;255;255;0m%s\e[m' "$dbgmapcache" "$((1+dbgrow/2))" "$((1+dbgcol))" "${arrows[dbgs]}"
 
     sync printf '\e[?2026l'
     ((frametimes[$((${EPOCHREALTIME/.}-frame_start))]++))
