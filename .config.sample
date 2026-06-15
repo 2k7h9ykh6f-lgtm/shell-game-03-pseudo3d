@@ -3,6 +3,7 @@ mapselect=${mapselect-4}
 NTHR=${NTHR-8}
 UNBUFFERED=${UNBUFFERED-1} # any non empty string == enabled
 MINIMAP=${MINIMAP-asdf} # any non empty string == enabled
+HUD=${HUD-asdf} # any non empty string == enabled
 
 # jemalloc usually makes bash go faster than the glibc malloc
 for jemalloc in /usr/lib{,64,/{aarch64,x86_64}-linux-gnu}/libjemalloc.so; do

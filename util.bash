@@ -30,6 +30,8 @@ dumpstats() {
     info 'unbuffered' "${tf[!$?]}"
     [[ $MINIMAP ]]
     info 'minimap' "${tf[!$?]}"
+    [[ $HUD ]]
+    info 'hud' "${tf[!$?]}"
 
     info 'terminated after frame' "$FRAME"
 
@@ -167,6 +169,17 @@ drawinfo () {
     ((${#infos[@]}))||return
     printf '\e[1;1H\e[m'
     printf '%s=%s\t' "${infos[@]@k}"
+}
+declare -a hud_dir=(E SE S SW W NW N NE)
+drawhud () {
+    local hud_rt=$((frame_start - hud_prev)) hud_fps hud_ms
+    hud_prev=$frame_start
+    ((hud_rt > 0)) && hud_fps=$((1000000 / hud_rt)) hud_ms=$((hud_rt / 1000))
+    printf '\e[1;%dH\e[7m X:%d Y:%d %s Map#%d %dms %dfps \e[m' \
+        "$((cols - 30))" \
+        "$((mx / scale))" "$((my / scale))" \
+        "${hud_dir[(((angle + pi_4) % pi2) / pi_2)]}" \
+        "$mapselect" "$hud_ms" "$hud_fps"
 }
 drawborder () {
     local i

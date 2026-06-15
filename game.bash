@@ -284,6 +284,7 @@ dist=(side?sdx-dx:sdy-dy)*fov/scale,h=dist<scale?rows*2:rows*2*scale/dist,fdist=
 
 # maybe this should be disabled if sync is off and we're in multithreaded mode
 [[ $MINIMAP ]]; aliasing "$?" minimap
+[[ $HUD ]]; aliasing "$?" hud
 
 for i in "${!map[@]}"; do
     mapc[i*3+0]=${wallsr[mapt[i]]}
@@ -306,6 +307,7 @@ exec {outfile}>"${OUTFILE-/dev/tty}"
 declare -A frametimes
 drawframe () {
     frame_start=${EPOCHREALTIME/.}
+    hud_prev=${hud_prev:-$frame_start}
     sync printf '\e[?2026h'
 
     multithread buffered dispatch 'drawrays > buffered."$tid"; printf x'
@@ -322,6 +324,8 @@ drawframe () {
     singlethread drawrays
 
     minimap printf "\e[1;1H$minimapfmt" "$mapcache" "$(((maph-row)/2))" "$col" "$fgr" "$fgg" "$fgb" "$bgr" "$bgg" "$bgb"
+
+    hud drawhud
 
     sync printf '\e[?2026l'
     ((frametimes[$((${EPOCHREALTIME/.}-frame_start))]++))
