@@ -1,3 +1,5 @@
+# the value that marks a door cell in the map grid; also its colour index (see colours.bash)
+doortype=10
 if ((mapselect==1)); then
 map=(
     1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
@@ -117,7 +119,7 @@ map=(
     3 0 3 3 5 5 6 6 6 7 7 0 0 0 0 0 0 0 0 0 0 0 9
     3 0 4 0 0 0 0 0 0 0 7 0 0 0 0 0 0 0 0 0 0 0 9
     3 0 0 0 0 0 0 0 6 0 7 0 0 0 0 0 0 0 0 0 0 0 9
-    4 4 4 4 5 5 6 6 6 0 7 0 0 0 0 0 0 0 0 0 0 0 9
+    4 4 4 4 5 5 6 6 6 10 7 0 0 0 0 0 0 0 0 0 0 0 9
     9 0 0 0 0 0 0 0 8 0 8 0 0 0 0 0 0 0 0 0 0 0 9
     9 0 0 0 0 0 0 0 8 0 8 0 0 0 0 0 0 0 0 0 0 0 9
     9 0 0 0 0 0 0 8 8 0 8 8 0 0 0 0 0 0 0 0 0 0 9
@@ -135,3 +137,8 @@ for ((i=0;i<maph;i+=2)) do
         mapt[q++]=${map[(i+1)*mapw+j]}
     done
 done
+
+# derive door positions from the map data: any cell whose value is doortype.
+# the stored value is doortype so re-closing restores the right cell value/colour.
+declare -gA doors=()
+for idx in "${!map[@]}"; do (( map[idx]==doortype )) && doors[$idx]=$doortype; done

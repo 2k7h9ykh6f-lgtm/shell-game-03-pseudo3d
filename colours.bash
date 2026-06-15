@@ -3,6 +3,9 @@ wallsr=(0  32  34 105 107 155 238 232 202 175)
 wallsg=(0 223 201 195 114  30  85 116 136 229)
 wallsb=(0  20 135 230 230 235 196 123  34  32)
 
+# door cell colour (wood/sienna); index must equal doortype (set in maps.bash)
+wallsr[doortype]=160 wallsg[doortype]=82 wallsb[doortype]=45
+
 wallcount=${#wallsr[@]}
 
 for ((i=0;i<wallcount*3;i++)) do

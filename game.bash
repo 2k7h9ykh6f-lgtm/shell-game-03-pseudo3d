@@ -339,6 +339,21 @@ fi
 
 speed=0 rspeed=0
 
+# door interaction: open/close the door cell directly in front of the player.
+# updates the main map (used by collision + minimap) and pushes the change to
+# every render coproc (each keeps its own copy of map) so the 3d view reflects it.
+doorkey=e door_prev=0
+toggledoor () {
+    local fr fc idx closed val
+    (( fr=(mx+cos)/scale, fc=(my+sin)/scale, idx=fr*mapw+fc ))
+    closed=${doors[$idx]}                     # set only if the cell in front is a door
+    [[ $closed ]] || return
+    val=$closed                               # closing restores the door value/colour
+    (( map[idx] )) && val=0                    # currently closed (non-zero) -> open it
+    map[idx]=$val                              # main copy: collision + minimap
+    dispatch "map[$idx]=$val"                  # render coprocs: 3d view
+}
+
 
 bomb=4
 addstate walls{r,g,b}\[{"$bomb","$((wallcount+bomb))"}]{,}
@@ -369,6 +384,7 @@ scale10=scale*10,
 scale100=scale*100
 ))
 while nextframe; do
+    doornow=0
     for k in "${INPUT[@]}"; do
         case $k in
             q) break 2 ;;
@@ -378,8 +394,13 @@ while nextframe; do
             DOWN) speed=-$scale_2;;
             j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov ;;
             k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov ;;
+            "$doorkey") doornow=1 ;;
         esac
     done
+
+    # edge-triggered so one physical press = one toggle (kitty reports held keys every frame)
+    (( doornow && !door_prev )) && toggledoor
+    door_prev=$doornow
 
     ((angle+=rspeed*deltat/scale,angle>=pi2&&(angle-=pi2),angle<0&&(angle+=pi2)))
     sincos "$angle"
