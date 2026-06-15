@@ -296,6 +296,46 @@ printf -v mapfmt '%*s' "$mapw"
 mapfmt=${mapfmt// /$cellfmt}$'\r\e[B'
 printf -v mapcache "$mapfmt" "${mapc[@]}"
 
+doorcell=10
+doorcells=()
+for ((i=0; i<${#map[@]}; i++)); do
+    ((map[i]==doorcell)) && doorcells+=("$i")
+done
+
+toggledoors () {
+    local dr dc di k ti mi dd
+    for k in "${INPUT[@]}"; do
+        if [[ $k = e ]]; then
+            ((dr=mx/scale, dc=my/scale))
+            for di in "$((dr*mapw+dc-mapw))" "$((dr*mapw+dc+mapw))" "$((dr*mapw+dc-1))" "$((dr*mapw+dc+1))"; do
+                if ((map[di]==doorcell)); then
+                    map[di]=0
+                    ((ti=di/2*3+(di%2),
+                      mi=di%2?((di-1)/2%2?ti-mapw*3:ti):((di/2%2?ti+mapw*3:ti)),
+                      mapc[mi]=mapc[mi+3]=0,
+                      mapc[mi+1]=mapc[mi+4]=0,
+                      mapc[mi+2]=mapc[mi+5]=0))
+                    oneshot "map[$di]" "mapc[$mi]" "mapc[$((mi+1))]" "mapc[$((mi+2))]" "mapc[$((mi+3))]" "mapc[$((mi+4))]" "mapc[$((mi+5))]"
+                elif ((map[di]==0)); then
+                    for dd in "${doorcells[@]}"; do
+                        if ((dd==di)); then
+                            map[di]=doorcell
+                            ((ti=di/2*3+(di%2),
+                              mi=di%2?((di-1)/2%2?ti-mapw*3:ti):((di/2%2?ti+mapw*3:ti)),
+                              mapc[mi]=wallsr[doorcell], mapc[mi+3]=wallsr[doorcell],
+                              mapc[mi+1]=wallsg[doorcell], mapc[mi+4]=wallsg[doorcell],
+                              mapc[mi+2]=wallsb[doorcell], mapc[mi+5]=wallsb[doorcell]))
+                            oneshot "map[$di]" "mapc[$mi]" "mapc[$((mi+1))]" "mapc[$((mi+2))]" "mapc[$((mi+3))]" "mapc[$((mi+4))]" "mapc[$((mi+5))]"
+                            break
+                        fi
+                    done
+                fi
+            done
+            break
+        fi
+    done
+}
+
 minimap='row=mx/scale,odd=row%2,row=row/2*2,col=my/scale,
 fgidx=row*mapw+col,bgidx=(row+1)*mapw+col,
 fgr=wallsr[odd?map[fgidx]:2],fgg=wallsg[odd?map[fgidx]:2],fgb=wallsb[odd?map[fgidx]:2],
@@ -378,6 +418,7 @@ while nextframe; do
             DOWN) speed=-$scale_2;;
             j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov ;;
             k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov ;;
+            e) ;; # handled by toggledoors
         esac
     done
 
@@ -385,6 +426,7 @@ while nextframe; do
     sincos "$angle"
 
     ((movement,bombtimer))
+    toggledoors
 
     drawframe >&"$outfile"
 done
