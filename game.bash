@@ -285,6 +285,11 @@ dist=(side?sdx-dx:sdy-dy)*fov/scale,h=dist<scale?rows*2:rows*2*scale/dist,fdist=
 # maybe this should be disabled if sync is off and we're in multithreaded mode
 [[ $MINIMAP ]]; aliasing "$?" minimap
 
+# hud: unobtrusive overlay with player coords, facing, map id and render time
+# starts enabled iff $HUD is non-empty (see .config.sample); 'h' toggles at runtime
+# avgus is an exponential moving average of the per-frame render time (µs)
+[[ $HUD ]]; hud=$((!$?)) avgus=0
+
 for i in "${!map[@]}"; do
     mapc[i*3+0]=${wallsr[mapt[i]]}
     mapc[i*3+1]=${wallsg[mapt[i]]}
@@ -304,6 +309,23 @@ minimapfmt="%s\e[%dA\e[%dC$cellfmt\e[m"
 
 exec {outfile}>"${OUTFILE-/dev/tty}"
 declare -A frametimes
+# compact status bar drawn on top of the scene (like the minimap); main process only.
+# values come straight from the engine's fixed-point state:
+#   position cell = m{x,y}/scale ; heading degrees = angle*360/pi2 (0deg == +X / +mx)
+#   render time   = avgus (smoothed per-frame µs measured in drawframe)
+# maps have no names in this engine, so we show the mapselect id and its dimensions.
+drawhud () {
+    local x_i x_f y_i y_f deg fps
+    ((x_i=mx/scale, x_f=mx%scale*100/scale,
+      y_i=my/scale, y_f=my%scale*100/scale,
+      deg=angle*360/pi2,
+      fps=avgus>0?1000000/avgus:0))
+    # \e[?7l/\e[?7h disable/restore autowrap so the line can never scroll the frame;
+    # only these cells are painted (the scene fully redraws each frame -> no smearing)
+    printf '\e[?7l\e[%d;1H\e[48;5;236;38;5;231m X %d.%02d  Y %d.%02d  dir %d°  map %s %dx%d  %d.%03dms %dfps \e[m\e[?7h' \
+        "$rows" "$x_i" "$x_f" "$y_i" "$y_f" "$deg" "$mapselect" "$mapw" "$maph" \
+        "$((avgus/1000))" "$((avgus%1000))" "$fps"
+}
 drawframe () {
     frame_start=${EPOCHREALTIME/.}
     sync printf '\e[?2026h'
@@ -323,8 +345,10 @@ drawframe () {
 
     minimap printf "\e[1;1H$minimapfmt" "$mapcache" "$(((maph-row)/2))" "$col" "$fgr" "$fgg" "$fgb" "$bgr" "$bgg" "$bgb"
 
+    ((hud)) && drawhud
+
     sync printf '\e[?2026l'
-    ((frametimes[$((${EPOCHREALTIME/.}-frame_start))]++))
+    ((lastframeus=${EPOCHREALTIME/.}-frame_start, frametimes[lastframeus]++, avgus=avgus?(avgus*7+lastframeus)/8:lastframeus))
 }
 
 run_listeners
@@ -378,6 +402,7 @@ while nextframe; do
             DOWN) speed=-$scale_2;;
             j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov ;;
             k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov ;;
+            h) ((hud=!hud)) ;;
         esac
     done
 

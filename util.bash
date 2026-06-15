@@ -30,6 +30,8 @@ dumpstats() {
     info 'unbuffered' "${tf[!$?]}"
     [[ $MINIMAP ]]
     info 'minimap' "${tf[!$?]}"
+    [[ $HUD ]]
+    info 'hud' "${tf[!$?]}"
 
     info 'terminated after frame' "$FRAME"
 
