@@ -178,6 +178,92 @@ drawborder () {
     printf '+%s+\e[K\r\e[B' "${hspaces// /-}"
 }
 
+drawdebug() {
+    local -i d_mapH d_startR d_startC d_r d_c d_cell d_or d_idx
+    local d_pr d_pc d_or2 d_cell2 d_fgR d_fgG d_fgB d_bgR d_bgG d_bgB
+
+    # half-block rendering: 2 map rows per terminal row
+    ((d_mapH=(maph+1)/2))
+    ((d_startR=rows-d_mapH-3, d_startR<1 && (d_startR=1)))
+    ((d_startC=cols-mapw-1, d_startC<1 && (d_startC=1)))
+
+    # player grid cell (mx=column, my=row in the map array)
+    ((d_pr=my/scale, d_pc=mx/scale))
+
+    # 3x3 collision neighbourhood
+    declare -A d_coll=()
+    for ((d_dr=-1; d_dr<=1; d_dr++)); do
+        for ((d_dc=-1; d_dc<=1; d_dc++)); do
+            ((d_r=d_pr+d_dr, d_c=d_pc+d_dc))
+            ((d_r>=0 && d_r<maph && d_c>=0 && d_c<mapw)) &&
+                d_coll["$d_r,$d_c"]=1
+        done
+    done
+
+    # direction ray via sampling (3 cells, 8 sub-samples each)
+    # sin affects row (my direction), cos affects column (mx direction)
+    declare -A d_dir=()
+    for ((d_s=1; d_s<=24; d_s++)); do
+        ((d_r=(my+sin*d_s/8)/scale, d_c=(mx+cos*d_s/8)/scale))
+        ((d_r<0||d_r>=maph||d_c<0||d_c>=mapw)) && break
+        d_dir["$d_r,$d_c"]=1
+        ((map[d_r*mapw+d_c])) && break
+    done
+
+    # render map using half-block cells (two map rows → one terminal row)
+    for ((d_or=0; d_or<maph; d_or+=2)) do
+        printf '\e[%d;%dH' "$((d_startR+d_or/2))" "$d_startC"
+        for ((d_c=0; d_c<mapw; d_c++)) do
+            # upper pixel = map row d_or, lower pixel = map row d_or+1
+            ((d_idx=d_or*mapw+d_c, d_cell=map[d_idx],
+              d_or2=d_or+1, d_cell2=(d_or2<maph?map[d_or2*mapw+d_c]:0)))
+
+            # set fg (upper pixel) colour
+            if ((d_cell)); then
+                ((d_fgR=wallsr[d_cell], d_fgG=wallsg[d_cell], d_fgB=wallsb[d_cell]))
+            else
+                ((d_fgR=20, d_fgG=20, d_fgB=25))
+            fi
+            # set bg (lower pixel) colour
+            if ((d_or2<maph && d_cell2)); then
+                ((d_bgR=wallsr[d_cell2], d_bgG=wallsg[d_cell2], d_bgB=wallsb[d_cell2]))
+            else
+                ((d_bgR=20, d_bgG=20, d_bgB=25))
+            fi
+
+            # overlays: player > direction > collision neighbourhood
+            if ((d_pr==d_or && d_pc==d_c)); then
+                ((d_fgR=0, d_fgG=255, d_fgB=50))
+            elif [[ ${d_dir["$d_or,$d_c"]} ]]; then
+                ((d_fgR=255, d_fgG=220, d_fgB=0))
+            elif [[ ${d_coll["$d_or,$d_c"]} && !d_cell ]]; then
+                ((d_fgR=90, d_fgG=25, d_fgB=25))
+            fi
+            if ((d_or2<maph)); then
+                if ((d_pr==d_or2 && d_pc==d_c)); then
+                    ((d_bgR=0, d_bgG=255, d_bgB=50))
+                elif [[ ${d_dir["$d_or2,$d_c"]} ]]; then
+                    ((d_bgR=255, d_bgG=220, d_bgB=0))
+                elif [[ ${d_coll["$d_or2,$d_c"]} && !d_cell2 ]]; then
+                    ((d_bgR=90, d_bgG=25, d_bgB=25))
+                fi
+            fi
+
+            printf '\e[38;2;%d;%d;%d;48;2;%d;%d;%dm▀' \
+                "$d_fgR" "$d_fgG" "$d_fgB" "$d_bgR" "$d_bgG" "$d_bgB"
+        done
+    done
+
+    # bottom border
+    printf '\e[%d;%dH\e[m' "$((d_startR+d_mapH))" "$d_startC"
+    printf '─%.0s' $(seq 1 "$mapw")
+
+    # info line below the map
+    printf '\e[m\e[%d;%dH\e[38;2;180;180;180mpos(%d,%d) cell(%d,%d) angle=%d coll[±1]' \
+        "$((d_startR+d_mapH+1))" "$d_startC" \
+        "$((mx/scale))" "$((my/scale))" "$d_pr" "$d_pc" "$((angle))"
+}
+
 infos=()
 msg= msgs=()
 error() { printf -v 'msgs[msg++]' '\e[31m%(%T)T [ERROR]: %s\e[m' -1 "$1"; }

@@ -284,6 +284,7 @@ dist=(side?sdx-dx:sdy-dy)*fov/scale,h=dist<scale?rows*2:rows*2*scale/dist,fdist=
 
 # maybe this should be disabled if sync is off and we're in multithreaded mode
 [[ $MINIMAP ]]; aliasing "$?" minimap
+DEBUG=${DEBUG-0}; ((DEBUG)); aliasing "$?" debug
 
 for i in "${!map[@]}"; do
     mapc[i*3+0]=${wallsr[mapt[i]]}
@@ -312,6 +313,7 @@ drawframe () {
     multithread unbuffered dispatch 'drawrays >&"$outfile"; printf x'
 
     minimap ((minimap))
+    debug drawdebug
 
     multithread for ((t=0;t<NTHR;t++)) do
     multithread     read -rn1 -u"${notify[t]}"
@@ -337,7 +339,7 @@ if ((BENCHMARK)); then
     exit
 fi
 
-speed=0 rspeed=0
+speed=0 rspeed=0 _debug_db=0
 
 
 bomb=4
@@ -378,9 +380,11 @@ while nextframe; do
             DOWN) speed=-$scale_2;;
             j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov ;;
             k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov ;;
+            d) ((_debug_db<1)) && ((_debug_db=8, DEBUG=!DEBUG)) ;;
         esac
     done
 
+    ((_debug_db>0&&_debug_db--))
     ((angle+=rspeed*deltat/scale,angle>=pi2&&(angle-=pi2),angle<0&&(angle+=pi2)))
     sincos "$angle"
 
