@@ -31,6 +31,7 @@ source ./maths.bash
 source ./maps.bash
 source ./util.bash
 source ./dispatch.bash
+source ./sound.bash
 
 
 LANG=C LC_ALL=C
@@ -90,6 +91,7 @@ gamesetup () {
     exitfunc () {
         dispatch exit
         wait
+        sfx_cleanup
 
         ((kitty)) && printf '\e[<u' >/dev/tty
         printf %b%.b >/dev/tty \
@@ -349,8 +351,9 @@ move='t=pos*speed*deltat/scale**2'
 smoothing='speed=speed*3**(deltat/15000)/4**(deltat/15000)'
 
 printf -v movement %s, \
-    "${move//pos/mx+cos}" "${collision/mx/t}&&(mx=t)" \
-    "${move//pos/my+sin}" "${collision/my/t}&&(my=t)" \
+    "${move//pos/mx+cos}" "cx=(${collision/mx/t})" "cx&&(mx=t)" \
+    "${move//pos/my+sin}" "cy=(${collision/my/t})" "cy&&(my=t)" \
+    "bumped=(!cx||!cy)&&(speed>scale_100||speed<-scale_100)" \
     "$smoothing" "${smoothing//speed/rspeed}"
 movement=${movement%,}
 
@@ -368,10 +371,13 @@ scale5=scale*5,
 scale10=scale*10,
 scale100=scale*100
 ))
+
+sfx_init
 while nextframe; do
     for k in "${INPUT[@]}"; do
         case $k in
             q) break 2 ;;
+            m) sfx_toggle_mute ;;
             LEFT)  rspeed=$scale_5;;
             RIGHT) rspeed=-$scale_5;;
             UP)   speed=$scale_2;;
@@ -385,6 +391,7 @@ while nextframe; do
     sincos "$angle"
 
     ((movement,bombtimer))
+    ((bumped)) && sfx bump
 
     drawframe >&"$outfile"
 done
