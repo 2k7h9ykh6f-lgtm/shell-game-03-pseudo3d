@@ -32,6 +32,37 @@ source ./maps.bash
 source ./util.bash
 source ./dispatch.bash
 
+# === Map Selection Screen ===
+show_map_select () {
+    echo "=== Pseudo3D - Map Selection ==="
+    echo ""
+    local i
+    for ((i=1; i<=total_maps; i++)); do
+        printf "  %d) %-20s (%s)\n" "$i" "${map_names[$i]}" "${map_sizes[$i]}"
+    done
+    echo ""
+    printf "Choose map [%d]: " "$mapselect"
+    local choice
+    read -r choice
+    if [[ $choice ]]; then
+        if validate_map "$choice"; then
+            mapselect=$choice
+        else
+            echo "Invalid selection '$choice', using default map $mapselect"
+            sleep 1
+        fi
+    fi
+}
+
+# Show map selection menu (skip when transitioning between maps via exit)
+if [[ ! $__pseudo3d_skip_menu ]]; then
+    show_map_select
+fi
+unset __pseudo3d_skip_menu
+
+# Load the selected map data
+load_map "$mapselect"
+
 
 LANG=C LC_ALL=C
 shopt -s extglob globasciiranges expand_aliases
@@ -291,6 +322,14 @@ for i in "${!map[@]}"; do
     mapc[i*3+2]=${wallsb[mapt[i]]}
 done
 
+# Mark exit position on minimap with bright pulsing green
+if ((cur_exit_row >= 0 && cur_exit_col >= 0)); then
+    exit_mapt_idx=$(( (cur_exit_row/2) * (mapw*2) + cur_exit_col * 2 + (cur_exit_row%2) ))
+    mapc[exit_mapt_idx*3+0]=50
+    mapc[exit_mapt_idx*3+1]=255
+    mapc[exit_mapt_idx*3+2]=50
+fi
+
 cellfmt=$'\e[38;2;%d;%d;%d;48;2;%d;%d;%dm▀'
 printf -v mapfmt '%*s' "$mapw"
 mapfmt=${mapfmt// /$cellfmt}$'\r\e[B'
@@ -385,6 +424,30 @@ while nextframe; do
     sincos "$angle"
 
     ((movement,bombtimer))
+
+    # === Exit detection: check if player reached the exit tile ===
+    if ((mx/scale == cur_exit_row && my/scale == cur_exit_col)); then
+        # Clean up coproc listeners
+        dispatch exit 2>/dev/null
+        wait 2>/dev/null
+
+        # Restore terminal state
+        ((kitty)) && printf '\e[<u' >/dev/tty
+        printf %b%.b >/dev/tty \
+            '\e[?1004l' 'focus off' \
+            '\e[?25h'   'cursor on' \
+            '\e[?1049l' 'alt screen off'
+        stty echo sane
+
+        # Show transition message
+        printf '\n\e[38;5;46m=== Exit reached! Loading map %d: %s ===\e[m\n\n' \
+            "$cur_next_map" "${map_names[$cur_next_map]}"
+        sleep 1
+
+        # Re-exec with next map (skip menu on transition)
+        export __pseudo3d_skip_menu=1
+        mapselect=$cur_next_map exec "$BASH" --norc --noediting --noprofile -im +H +o history ./game.bash
+    fi
 
     drawframe >&"$outfile"
 done
