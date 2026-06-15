@@ -31,6 +31,7 @@ source ./maths.bash
 source ./maps.bash
 source ./util.bash
 source ./dispatch.bash
+source ./sfx.bash
 
 
 LANG=C LC_ALL=C
@@ -195,6 +196,7 @@ gamesetup () {
 
 gamesetup
 source ./colours.bash
+sfx gamestart
 
 # this code is horrible because this function is more performance-intensive than it looks like,
 # and it takes a ridiculous % of the time if you write it in a less atrocious way
@@ -368,23 +370,39 @@ scale5=scale*5,
 scale10=scale*10,
 scale100=scale*100
 ))
+_prev_mx=0 _prev_my=0 _colliding=0 _step_accum=0
 while nextframe; do
     for k in "${INPUT[@]}"; do
         case $k in
-            q) break 2 ;;
+            q) sfx_quit; break 2 ;;
             LEFT)  rspeed=$scale_5;;
             RIGHT) rspeed=-$scale_5;;
             UP)   speed=$scale_2;;
             DOWN) speed=-$scale_2;;
-            j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov ;;
-            k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov ;;
+            j) ((fov<scale2&&(fov=fov*105/100))); oneshot fov; sfx fov_in 5 ;;
+            k) ((fov>scale_5&&(fov=fov*95/100))); oneshot fov; sfx fov_out 5 ;;
+            m) if [[ $MUTE ]]; then unset MUTE; else MUTE=1; fi ;;
         esac
     done
 
     ((angle+=rspeed*deltat/scale,angle>=pi2&&(angle-=pi2),angle<0&&(angle+=pi2)))
     sincos "$angle"
 
+    (( _prev_mx=mx, _prev_my=my ))
     ((movement,bombtimer))
+
+    # collision detection: tried to move but position didn't change
+    if (( (speed > scale_100 || speed < -scale_100) && mx == _prev_mx && my == _prev_my )); then
+        (( !_colliding )) && sfx collision 8
+        (( _colliding = 1 ))
+    else
+        (( _colliding = 0 ))
+    fi
+
+    # footstep detection: distance-based trigger
+    (( _step_dx = mx - _prev_mx, _step_dy = my - _prev_dy ))
+    (( _step_accum += _step_dx*_step_dx + _step_dy*_step_dy ))
+    (( _step_accum > scale2*scale2/16 )) && { sfx footstep 3; (( _step_accum = 0 )); }
 
     drawframe >&"$outfile"
 done
